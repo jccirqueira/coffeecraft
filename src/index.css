@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brew: #bd6609;
+  --color-brew-dark: #9b5407;
+  --color-brew-soft: #bd6609;
+}
