@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { useData } from '../DataContext'
 import { BookOpen, Plus, Pencil, Trash2, X, Check } from 'lucide-react'
 
 export default function RecipeManager() {
-  const [products] = useLocalStorage('coffeecraft_products', [])
-  const [recipes, setRecipes] = useLocalStorage('coffeecraft_receitas', [])
+  const { produtos: products, receitas: recipes, adicionar, atualizar, excluir } = useData()
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [nome, setNome] = useState('')
@@ -12,7 +11,6 @@ export default function RecipeManager() {
   const [addItemId, setAddItemId] = useState('')
   const [addQtd, setAddQtd] = useState(1)
 
-  const nextId = recipes.length ? Math.max(...recipes.map(r => r.id)) + 1 : 1
   const disponiveis = products.filter(p => !itens.find(i => i.id === p.id))
 
   function resetForm() {
@@ -42,14 +40,17 @@ export default function RecipeManager() {
     setItens(itens.filter(i => i.id !== id))
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!nome.trim() || itens.length === 0) return
     const novosItens = itens.map(i => ({ ...i }))
-    if (editingId) {
-      setRecipes(recipes.map(r => r.id === editingId ? { ...r, nome: nome.trim(), itens: novosItens } : r))
-    } else {
-      setRecipes([...recipes, { id: nextId, nome: nome.trim(), itens: novosItens }])
-    }
+
+    try {
+      if (editingId) {
+        await atualizar('receitas', editingId, { nome: nome.trim(), itens: novosItens })
+      } else {
+        await adicionar('receitas', { nome: nome.trim(), itens: novosItens })
+      }
+    } catch { return }
     resetForm()
   }
 
@@ -60,8 +61,10 @@ export default function RecipeManager() {
     setShowForm(true)
   }
 
-  function handleDelete(id) {
-    setRecipes(recipes.filter(r => r.id !== id))
+  async function handleDelete(id) {
+    try {
+      await excluir('receitas', id)
+    } catch { }
   }
 
   return (

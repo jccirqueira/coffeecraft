@@ -1,16 +1,39 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Coffee, Package, FileText, BookOpen, Users, Settings } from 'lucide-react'
+import { api } from './api'
+import { DataProvider, useData } from './DataContext'
+import LoginScreen from './components/LoginScreen'
 import ProductManager from './components/ProductManager'
 import RecipeManager from './components/RecipeManager'
 import ClientManager from './components/ClientManager'
 import SettingsManager from './components/SettingsManager'
 import ProposalBuilder from './components/ProposalBuilder'
 
-export default function App() {
+function MainApp() {
   const [tab, setTab] = useState('proposta')
+  const { carregando, erro, setErro } = useData()
+
+  if (carregando) {
+    return (
+      <div className="min-h-screen bg-stone-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="bg-brew rounded-xl p-3 w-fit mx-auto mb-4 animate-pulse">
+            <Coffee size={32} className="text-white" />
+          </div>
+          <p className="text-amber-900 font-medium">Carregando dados...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-stone-100">
+      {erro && (
+        <div className="bg-red-100 border-b border-red-300 text-red-700 text-sm px-4 py-2 flex items-center justify-between gap-4">
+          <span>{erro}</span>
+          <button onClick={() => setErro('')} className="font-semibold cursor-pointer">✕</button>
+        </div>
+      )}
       <div className="flex flex-col lg:flex-row min-h-screen">
         <aside className="w-full lg:w-64 bg-brew text-amber-50 p-6 flex flex-col">
           <div className="flex items-center gap-3 mb-10">
@@ -97,5 +120,30 @@ export default function App() {
         </main>
       </div>
     </div>
+  )
+}
+
+export default function App() {
+  const [token, setToken] = useState(() => window.localStorage.getItem('coffeecraft_token') || '')
+
+  const handleLogin = useCallback(async senha => {
+    const res = await api.login(senha)
+    window.localStorage.setItem('coffeecraft_token', res.token)
+    setToken(res.token)
+  }, [])
+
+  const handleLogout = useCallback(() => {
+    window.localStorage.removeItem('coffeecraft_token')
+    setToken('')
+  }, [])
+
+  if (!token) {
+    return <LoginScreen onLogin={handleLogin} />
+  }
+
+  return (
+    <DataProvider token={token} onLogout={handleLogout}>
+      <MainApp />
+    </DataProvider>
   )
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { useData } from '../DataContext'
 import { maskCPF, maskCNPJ, maskTelefone } from '../utils/masks'
 import { Users, Plus, Pencil, Trash2, X, Check } from 'lucide-react'
 
@@ -14,12 +14,10 @@ const emptyForm = {
 }
 
 export default function ClientManager() {
-  const [clientes, setClientes] = useLocalStorage('coffeecraft_clientes', [])
+  const { clientes, adicionar, atualizar, excluir } = useData()
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyForm)
-
-  const nextId = clientes.length ? Math.max(...clientes.map(c => c.id)) + 1 : 1
 
   function resetForm() {
     setForm(emptyForm)
@@ -27,16 +25,17 @@ export default function ClientManager() {
     setShowForm(false)
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.nome.trim()) return
+    const dados = { ...form, nome: form.nome.trim() }
 
-    if (editingId) {
-      setClientes(clientes.map(c =>
-        c.id === editingId ? { ...form, id: editingId, nome: form.nome.trim() } : c
-      ))
-    } else {
-      setClientes([...clientes, { ...form, id: nextId, nome: form.nome.trim() }])
-    }
+    try {
+      if (editingId) {
+        await atualizar('clientes', editingId, dados)
+      } else {
+        await adicionar('clientes', dados)
+      }
+    } catch { return }
     resetForm()
   }
 
@@ -54,8 +53,10 @@ export default function ClientManager() {
     setShowForm(true)
   }
 
-  function handleDelete(id) {
-    setClientes(clientes.filter(c => c.id !== id))
+  async function handleDelete(id) {
+    try {
+      await excluir('clientes', id)
+    } catch { }
   }
 
   return (

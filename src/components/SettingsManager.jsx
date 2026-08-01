@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { useData } from '../DataContext'
+import { api } from '../api'
 import { maskCNPJ, maskTelefone } from '../utils/masks'
-import { Coffee, Plus, Pencil, Trash2, X, Check } from 'lucide-react'
+import { Coffee, Plus, Pencil, Trash2, X, Check, Upload, Download } from 'lucide-react'
 
 const emptyForm = {
   nome: '',
@@ -14,12 +15,72 @@ const emptyForm = {
 }
 
 export default function SettingsManager() {
-  const [cafeterias, setCafeterias] = useLocalStorage('coffeecraft_cafeterias', [])
+  const { cafeterias, carregar, adicionar, atualizar, excluir } = useData()
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [importMsg, setImportMsg] = useState('')
+  const [importando, setImportando] = useState(false)
 
-  const nextId = cafeterias.length ? Math.max(...cafeterias.map(c => c.id)) + 1 : 1
+  const CHAVES = {
+    coffeecraft_products: 'produtos',
+    coffeecraft_clientes: 'clientes',
+    coffeecraft_cafeterias: 'cafeterias',
+    coffeecraft_categorias: 'categorias',
+    coffeecraft_receitas: 'receitas',
+    coffeecraft_historico: 'propostas',
+    coffeecraft_proposta_contador: 'contador',
+  }
+
+  function lerDadosNavegador() {
+    const dados = {}
+    for (const [chave, tabela] of Object.entries(CHAVES)) {
+      try {
+        const raw = window.localStorage.getItem(chave)
+        if (!raw) continue
+        dados[tabela] = JSON.parse(raw)
+      } catch {
+        // ignora chave inválida
+      }
+    }
+    if (Array.isArray(dados.categorias)) {
+      dados.categorias = dados.categorias.map(nome => ({ nome: String(nome) }))
+    }
+    return dados
+  }
+
+  async function handleImportar() {
+    const dados = lerDadosNavegador()
+    const total = Object.values(dados).reduce((acc, v) => acc + (Array.isArray(v) ? v.length : Object.keys(v || {}).length), 0)
+    if (total === 0) {
+      setImportMsg('Nenhum dado antigo encontrado neste navegador.')
+      return
+    }
+    if (!confirm(`Importar ${total} registro(s) deste navegador para o servidor? Os dados existentes no servidor não serão apagados.`)) return
+
+    setImportando(true)
+    setImportMsg('')
+    try {
+      const res = await api.importar(dados)
+      await carregar()
+      setImportMsg(`Importação concluída: ${Object.entries(res.totals).map(([t, n]) => `${t}: ${n}`).join(', ')}`)
+    } catch (e) {
+      setImportMsg(`Erro na importação: ${e.message}`)
+    } finally {
+      setImportando(false)
+    }
+  }
+
+  function handleExportar() {
+    const dados = lerDadosNavegador()
+    const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'coffeecraft-dados.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   function resetForm() {
     setForm(emptyForm)
@@ -27,16 +88,17 @@ export default function SettingsManager() {
     setShowForm(false)
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.nome.trim()) return
+    const dados = { ...form, nome: form.nome.trim() }
 
-    if (editingId) {
-      setCafeterias(cafeterias.map(c =>
-        c.id === editingId ? { ...form, id: editingId, nome: form.nome.trim() } : c
-      ))
-    } else {
-      setCafeterias([...cafeterias, { ...form, id: nextId, nome: form.nome.trim() }])
-    }
+    try {
+      if (editingId) {
+        await atualizar('cafeterias', editingId, dados)
+      } else {
+        await adicionar('cafeterias', dados)
+      }
+    } catch { return }
     resetForm()
   }
 
@@ -54,8 +116,10 @@ export default function SettingsManager() {
     setShowForm(true)
   }
 
-  function handleDelete(id) {
-    setCafeterias(cafeterias.filter(c => c.id !== id))
+  async function handleDelete(id) {
+    try {
+      await excluir('cafeterias', id)
+    } catch { }
   }
 
   return (
@@ -74,6 +138,35 @@ export default function SettingsManager() {
         Cadastre as cafeterias que fornecem o coffee break. Na proposta, você escolhe qual delas
         irá fornecer — os dados dela aparecem no cabeçalho do PDF.
       </p>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Upload size={16} className="text-amber-700" />
+          <h3 className="font-semibold text-amber-900">Dados deste navegador</h3>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Os dados antigos (produtos, clientes, cafeterias, receitas e histórico) que ainda estão
+          salvos neste navegador podem ser enviados para o servidor, ficando no banco de dados.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleImportar}
+            disabled={importando}
+            className="flex items-center gap-2 bg-brew hover:bg-brew-dark disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed"
+          >
+            <Upload size={16} /> {importando ? 'Importando...' : 'Importar dados deste navegador'}
+          </button>
+          <button
+            onClick={handleExportar}
+            className="flex items-center gap-2 border-2 border-brew text-brew hover:bg-brew hover:text-white px-4 py-2 rounded-lg transition-colors cursor-pointer"
+          >
+            <Download size={16} /> Baixar backup (JSON)
+          </button>
+          {importMsg && (
+            <span className="text-sm font-medium text-amber-800">{importMsg}</span>
+          )}
+        </div>
+      </div>
 
       {showForm && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">

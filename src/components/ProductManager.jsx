@@ -1,14 +1,8 @@
 import { useState } from 'react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { useData } from '../DataContext'
 import { Coffee, Utensils, CakeSlice, Plus, Pencil, Trash2, X, Check, Tag } from 'lucide-react'
 
-const defaultProducts = [
-  { id: 1, nome: 'Mini Carolina', precoCusto: 2.1, precoVenda: 3.5, categoria: 'Doces' },
-  { id: 2, nome: 'Pão de Queijo', precoCusto: 1.2, precoVenda: 2.0, categoria: 'Salgados' },
-  { id: 3, nome: 'Mini Sanduíche', precoCusto: 2.7, precoVenda: 4.5, categoria: 'Salgados' },
-  { id: 4, nome: 'Café Gourmet', precoCusto: 1.8, precoVenda: 3.0, categoria: 'Bebidas' },
-  { id: 5, nome: 'Suco de Laranja', precoCusto: 2.4, precoVenda: 4.0, categoria: 'Bebidas' },
-]
+const DEFAULT_CATEGORIAS = ['Salgados', 'Doces', 'Bebidas']
 
 const categoriaIcon = {
   Salgados: Utensils,
@@ -29,8 +23,8 @@ function formatMoney(v) {
 }
 
 export default function ProductManager() {
-  const [products, setProducts] = useLocalStorage('coffeecraft_products', defaultProducts)
-  const [categorias, setCategorias] = useLocalStorage('coffeecraft_categorias', ['Salgados', 'Doces', 'Bebidas'])
+  const { produtos: products, categorias: catList, adicionar, atualizar, excluir, renomearCategoria } = useData()
+  const categorias = catList.length ? catList : DEFAULT_CATEGORIAS
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState({ nome: '', precoCusto: '', precoVenda: '', categoria: 'Salgados' })
@@ -38,28 +32,27 @@ export default function ProductManager() {
   const [editandoCategoria, setEditandoCategoria] = useState(null)
   const [editNomeCategoria, setEditNomeCategoria] = useState('')
 
-  const nextId = products.length ? Math.max(...products.map(p => p.id)) + 1 : 1
-
   function resetForm() {
     setForm({ nome: '', precoCusto: '', precoVenda: '', categoria: 'Salgados' })
     setEditingId(null)
     setShowForm(false)
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.nome.trim() || !form.precoVenda) return
     const precoVenda = parseFloat(form.precoVenda)
     if (isNaN(precoVenda) || precoVenda <= 0) return
     const precoCusto = parseFloat(form.precoCusto)
     const custo = isNaN(precoCusto) || precoCusto < 0 ? 0 : precoCusto
+    const dados = { nome: form.nome.trim(), precoCusto: custo, precoVenda, categoria: form.categoria }
 
-    if (editingId) {
-      setProducts(products.map(p =>
-        p.id === editingId ? { ...p, nome: form.nome.trim(), precoCusto: custo, precoVenda, categoria: form.categoria } : p
-      ))
-    } else {
-      setProducts([...products, { id: nextId, nome: form.nome.trim(), precoCusto: custo, precoVenda, categoria: form.categoria }])
-    }
+    try {
+      if (editingId) {
+        await atualizar('produtos', editingId, dados)
+      } else {
+        await adicionar('produtos', dados)
+      }
+    } catch { return }
     resetForm()
   }
 
@@ -74,18 +67,22 @@ export default function ProductManager() {
     setShowForm(true)
   }
 
-  function handleDelete(id) {
-    setProducts(products.filter(p => p.id !== id))
+  async function handleDelete(id) {
+    try {
+      await excluir('produtos', id)
+    } catch { }
   }
 
-  function handleAddCategoria() {
+  async function handleAddCategoria() {
     const nome = novaCategoria.trim()
     if (!nome || categorias.includes(nome)) return
-    setCategorias([...categorias, nome])
-    setNovaCategoria('')
+    try {
+      await adicionar('categorias', { nome })
+      setNovaCategoria('')
+    } catch { }
   }
 
-  function handleRenameCategoria() {
+  async function handleRenameCategoria() {
     const nome = editNomeCategoria.trim()
     const antiga = editandoCategoria
     if (!antiga) return
@@ -94,13 +91,17 @@ export default function ProductManager() {
       return
     }
     if (categorias.includes(nome)) return
-    setCategorias(categorias.map(c => c === antiga ? nome : c))
-    setEditandoCategoria(null)
+    try {
+      await renomearCategoria(antiga, nome)
+      setEditandoCategoria(null)
+    } catch { }
   }
 
-  function handleDeleteCategoria(nome) {
+  async function handleDeleteCategoria(nome) {
     if (!confirm(`Excluir a categoria "${nome}"? Os produtos desta categoria continuarão cadastrados.`)) return
-    setCategorias(categorias.filter(c => c !== nome))
+    try {
+      await excluir('categorias', nome)
+    } catch { }
   }
 
   return (

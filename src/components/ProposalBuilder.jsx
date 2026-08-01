@@ -1,16 +1,9 @@
 import { useState, useRef, useMemo, useCallback } from 'react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { useData } from '../DataContext'
+import { api } from '../api'
 import { Plus, Trash2, Printer, Percent, DollarSign, BookOpen, Wand2, Save, History, RefreshCw, FolderOpen } from 'lucide-react'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-
-const defaultProducts = [
-  { id: 1, nome: 'Mini Carolina', precoCusto: 2.1, precoVenda: 3.5, categoria: 'Doces' },
-  { id: 2, nome: 'Pão de Queijo', precoCusto: 1.2, precoVenda: 2.0, categoria: 'Salgados' },
-  { id: 3, nome: 'Mini Sanduíche', precoCusto: 2.7, precoVenda: 4.5, categoria: 'Salgados' },
-  { id: 4, nome: 'Café Gourmet', precoCusto: 1.8, precoVenda: 3.0, categoria: 'Bebidas' },
-  { id: 5, nome: 'Suco de Laranja', precoCusto: 2.4, precoVenda: 4.0, categoria: 'Bebidas' },
-]
 
 function novaSessao(id) {
   return { id, data: '', horaInicio: '', horaFim: '', participantes: 1, itens: [] }
@@ -25,11 +18,7 @@ function custoOf(p) {
 }
 
 export default function ProposalBuilder() {
-  const [products] = useLocalStorage('coffeecraft_products', defaultProducts)
-  const [receitas, setReceitas] = useLocalStorage('coffeecraft_receitas', [])
-  const [clientes] = useLocalStorage('coffeecraft_clientes', [])
-  const [cafeterias] = useLocalStorage('coffeecraft_cafeterias', [])
-  const [categorias] = useLocalStorage('coffeecraft_categorias', ['Salgados', 'Doces', 'Bebidas'])
+  const { produtos: products, receitas, clientes, cafeterias, categorias, propostas: historico, adicionar, excluir } = useData()
   const [cliente, setCliente] = useState('')
   const [cafeteriaId, setCafeteriaId] = useState('')
   const [sessoes, setSessoes] = useState([novaSessao(1)])
@@ -41,7 +30,6 @@ export default function ProposalBuilder() {
   const [successMessage, setSuccessMessage] = useState('')
   const [receitaMsg, setReceitaMsg] = useState('')
   const [addForm, setAddForm] = useState(null)
-  const [historico, setHistorico] = useLocalStorage('coffeecraft_historico', [])
   const [numeroAtual, setNumeroAtual] = useState('')
   const [propostaMsg, setPropostaMsg] = useState('')
   const nextSessaoId = useRef(1)
@@ -50,20 +38,17 @@ export default function ProposalBuilder() {
 
   const cafeteria = cafeterias.find(c => c.id === parseInt(cafeteriaId)) || null
 
-  function gerarNumeroProposta() {
+  async function gerarNumeroProposta() {
     const hoje = new Date()
     const dd = String(hoje.getDate()).padStart(2, '0')
     const mm = String(hoje.getMonth() + 1).padStart(2, '0')
     const aa = String(hoje.getFullYear()).slice(-2)
     const chave = `${dd}${mm}${aa}`
-    const contador = JSON.parse(window.localStorage.getItem('coffeecraft_proposta_contador') || '{}')
-    const seq = (contador[chave] || 0) + 1
-    contador[chave] = seq
-    window.localStorage.setItem('coffeecraft_proposta_contador', JSON.stringify(contador))
-    return `${chave}-${String(seq).padStart(2, '0')}-R00`
+    const res = await api.contadorNext(chave)
+    return `${chave}-${String(res.seq).padStart(2, '0')}-R00`
   }
 
-  function salvarProposta(criarRevisao) {
+  async function salvarProposta(criarRevisao) {
     if (!podeGerarPDF) {
       setPropostaMsg('Preencha o cliente e adicione itens antes de salvar.')
       setTimeout(() => setPropostaMsg(''), 4000)
@@ -71,32 +56,38 @@ export default function ProposalBuilder() {
     }
 
     let numero = numeroAtual
-    if (!numero) {
-      numero = gerarNumeroProposta()
+    try {
+      if (!numero) {
+        numero = await gerarNumeroProposta()
+      }
+
+      if (criarRevisao && numeroAtual) {
+        const base = numeroAtual.slice(0, -3)
+        const rev = parseInt(numeroAtual.slice(-2)) + 1
+        numero = `${base}R${String(rev).padStart(2, '0')}`
+      }
+
+      const entrada = {
+        numero,
+        cliente,
+        cafeteriaId: parseInt(cafeteriaId) || 0,
+        cafeteriaNome: cafeteria ? cafeteria.nome : '',
+        cafeteriaLocal: cafeteria && cafeteria.local ? cafeteria.local : '',
+        sessoes: JSON.parse(JSON.stringify(sessoes)),
+        taxaTipo,
+        taxaValor,
+        subtotal,
+        totalGeral,
+        salvoEm: new Date().toISOString(),
+      }
+
+      await adicionar('propostas', entrada)
+    } catch {
+      setPropostaMsg('Erro ao salvar a proposta. Tente novamente.')
+      setTimeout(() => setPropostaMsg(''), 4000)
+      return
     }
 
-    if (criarRevisao && numeroAtual) {
-      const base = numeroAtual.slice(0, -3)
-      const rev = parseInt(numeroAtual.slice(-2)) + 1
-      numero = `${base}R${String(rev).padStart(2, '0')}`
-    }
-
-    const entrada = {
-      id: Date.now(),
-      numero,
-      cliente,
-      cafeteriaId,
-      cafeteriaNome: cafeteria ? cafeteria.nome : '',
-      cafeteriaLocal: cafeteria && cafeteria.local ? cafeteria.local : '',
-      sessoes: JSON.parse(JSON.stringify(sessoes)),
-      taxaTipo,
-      taxaValor,
-      subtotal,
-      totalGeral,
-      salvoEm: new Date().toISOString(),
-    }
-
-    setHistorico([entrada, ...historico])
     setNumeroAtual(numero)
     setPropostaMsg(criarRevisao
       ? `Revisão criada: ${numero}`
@@ -115,8 +106,10 @@ export default function ProposalBuilder() {
     setTimeout(() => setPropostaMsg(''), 4000)
   }
 
-  function excluirProposta(id) {
-    setHistorico(historico.filter(h => h.id !== id))
+  async function excluirProposta(id) {
+    try {
+      await excluir('propostas', id)
+    } catch { }
   }
 
   function formatMoney(v) {
@@ -253,11 +246,12 @@ export default function ProposalBuilder() {
     setReceitaItens(receitaItens.filter(i => i.id !== itemId))
   }
 
-  function salvarNovaReceita() {
+  async function salvarNovaReceita() {
     const nome = nomeNovaReceita.trim()
     if (!nome || receitaItens.length === 0) return
-    const nextId = receitas.length ? Math.max(...receitas.map(r => r.id)) + 1 : 1
-    setReceitas([...receitas, { id: nextId, nome, itens: receitaItens.map(i => ({ ...i })) }])
+    try {
+      await adicionar('receitas', { nome, itens: receitaItens.map(i => ({ ...i })) })
+    } catch { return }
     setNomeNovaReceita('')
     setReceitaMsg('Receita salva com sucesso!')
     setTimeout(() => setReceitaMsg(''), 3000)
