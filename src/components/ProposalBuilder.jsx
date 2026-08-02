@@ -906,7 +906,7 @@ export default function ProposalBuilder() {
           {sessoes.map((s, i) => (
             <div key={s.id} className="mb-5 last:mb-0">
               <div className="text-sm font-semibold text-gray-700 mb-2">
-                Sessão {i + 1} — {dataLabel(s)}
+                Evento {i + 1} — {dataLabel(s)}
                 {horarioLabel(s) && <span className="text-gray-500 font-normal"> · {horarioLabel(s)}</span>}
                 <span className="text-gray-500 font-normal"> · {s.participantes} participante(s)</span>
               </div>
@@ -1132,7 +1132,7 @@ export default function ProposalBuilder() {
                 borderBottom: '1px solid #fde68a',
                 borderRadius: '4px 4px 0 0',
               }}>
-                Sessão {i + 1} — {dataLabel(s)}
+                Evento {i + 1} — {dataLabel(s)}
                 {horarioLabel(s) ? ` das ${horarioLabel(s)}` : ''} · {s.participantes} participante(s)
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
@@ -1229,7 +1229,7 @@ export default function ProposalBuilder() {
                 borderBottom: '1px solid #a7f3d0',
                 borderRadius: '4px 4px 0 0',
               }}>
-                Sessão {i + 1} — {dataLabel(s)}
+                Evento {i + 1} — {dataLabel(s)}
                 {horarioLabel(s) ? ` das ${horarioLabel(s)}` : ''} · {s.participantes} participante(s)
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
