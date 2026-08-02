@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from 'react'
+import { flushSync } from 'react-dom'
 import { useData } from '../DataContext'
 import { api } from '../api'
 import { Plus, Trash2, Printer, Percent, DollarSign, BookOpen, Wand2, Save, History, RefreshCw, FolderOpen } from 'lucide-react'
@@ -345,8 +346,20 @@ export default function ProposalBuilder() {
     }
   }
 
+  async function garantirNumeroProposta() {
+    if (numeroAtual) return numeroAtual
+    try {
+      const n = await gerarNumeroProposta()
+      flushSync(() => setNumeroAtual(n))
+      return n
+    } catch {
+      return ''
+    }
+  }
+
   async function gerarPDF() {
     if (!pdfRef.current) return
+    await garantirNumeroProposta()
     await capturarPDF(pdfRef, `proposta_coffeecraft_${cliente.replace(/\s+/g, '_') || 'cliente'}.pdf`)
     setSuccessMessage('PDF gerado com sucesso!')
     setTimeout(() => setSuccessMessage(''), 3000)
@@ -354,6 +367,7 @@ export default function ProposalBuilder() {
 
   async function gerarPDFResultado() {
     if (!resultadoPdfRef.current) return
+    await garantirNumeroProposta()
     await capturarPDF(resultadoPdfRef, `resultado_coffeecraft_${cliente.replace(/\s+/g, '_') || 'cliente'}.pdf`)
   }
 
