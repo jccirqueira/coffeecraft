@@ -106,7 +106,8 @@ function MainApp() {
 
           <div className="mt-auto pt-6 border-t border-amber-700 text-amber-400 text-xs">
             <p>© 2026 CoffeeCraft</p>
-            <p className="mt-1">Powered By Cacir Soluções Tecnológicas</p>
+            <p className="mt-1">Powered By</p>
+            <p>Cacir Soluções Tecnológicas</p>
           </div>
         </aside>
 
