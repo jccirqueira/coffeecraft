@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Coffee, Package, FileText, BookOpen, Users, Settings } from 'lucide-react'
+import { Coffee, Package, FileText, BookOpen, Users, Settings, CircleHelp } from 'lucide-react'
 import { api } from './api'
 import { DataProvider, useData } from './DataContext'
 import LoginScreen from './components/LoginScreen'
@@ -8,6 +8,7 @@ import RecipeManager from './components/RecipeManager'
 import ClientManager from './components/ClientManager'
 import SettingsManager from './components/SettingsManager'
 import ProposalBuilder from './components/ProposalBuilder'
+import HelpManager from './components/HelpManager'
 
 function MainApp() {
   const [tab, setTab] = useState('proposta')
@@ -102,6 +103,17 @@ function MainApp() {
               <Settings size={18} />
               Configurações
             </button>
+            <button
+              onClick={() => setTab('ajuda')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors cursor-pointer ${
+                tab === 'ajuda'
+                  ? 'bg-brew text-white font-semibold'
+                  : 'text-amber-200 hover:bg-brew-dark/50 hover:text-white'
+              }`}
+            >
+              <CircleHelp size={18} />
+              Ajuda
+            </button>
           </nav>
 
           <div className="mt-auto pt-6 border-t border-amber-700 text-amber-400 text-xs">
@@ -118,6 +130,7 @@ function MainApp() {
             {tab === 'receitas' && <RecipeManager />}
             {tab === 'configuracoes' && <SettingsManager />}
             {tab === 'proposta' && <ProposalBuilder />}
+            {tab === 'ajuda' && <HelpManager />}
           </div>
         </main>
       </div>
